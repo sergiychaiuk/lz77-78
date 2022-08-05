@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>lz77 lz78</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="input-group">
+            <input type="text" id="input" value="Хто хоче – шукає можливості, хто не хоче – шукає причини.">
+            <button id="button">ОК</button>
+        </div>
+
+        <div class="row" style="display: flex; width: 100%; justify-content: center">
+            <div class="col" style="margin: 10px;">
+                <div class="subtitle">LZ77</div>
+
+                <div class="LZ77">
+                    <table class="LZ77-table">
+                        <tr>
+                            <th>Позиція</th>
+                            <th>Довжина</th>
+                            <th>Символ</th>
+                        </tr>
+                    </table>
+                </div>
+
+                <div id="decode-77"></div>
+            </div>
+
+            <div class="col" style="margin: 10px;">
+                <div class="subtitle">LZ78</div>
+
+                <div class="LZ78">
+                    <table class="LZ78-table">
+                        <tr>
+                            <th>Індекс</th>
+                            <th>Символ</th>
+                        </tr>
+                    </table>
+                </div>
+
+                <div id="decode-78"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function rfind(window, search) {
+            if (search.length > window.length) {
+                return -1
+            }
+            for (let position = window.length - search.length; position >= 0; position--) {
+                const segment = window.slice(position, position + search.length)
+                let segmentMatch = true
+                for (let i = 0; i < segment.length; i++) {
+                    if (segment[i] !== search[i]) {
+                        segmentMatch = false
+                        break
+                    }
+                }
+                if (segmentMatch) return position
+            }
+            return -1
+        }
+
+        function findCode(window, lookahead) {
+            const code = {
+                offset: 0,
+                length: 0,
+                literal: lookahead[0]
+            }
+            let searchLength = 1
+            while (searchLength < lookahead.length) {
+                const search = lookahead.slice(0, searchLength)
+                const rightmostMatch = rfind(window, search)
+                if (rightmostMatch < 0) {
+                    break
+                }
+                code.offset = window.length - rightmostMatch
+                code.length = searchLength
+                code.literal = search + lookahead[searchLength]
+                searchLength++
+            }
+            return code
+        }
+
+        function encodeLz77(input, windowSize) {
+            const encoded = []
+            let position = 0
+            while (position < input.length) {
+                const lookahead = input.slice(position)
+                const windowStart = Math.max(position - windowSize + 1, 0)
+                const window = input.slice(windowStart, position)
+                const code = findCode(window, lookahead)
+                position += code.length + 1
+                encoded.push(code)
+            }
+            return encoded
+        }
+
+        function decodeLz77(encoded) {
+            let decoded = ''
+
+            encoded.forEach(node => {
+                if (node.length > 0) {
+                    let position = decoded.length - node.offset
+                    for (let i = 0; i < node.length; i++) {
+                        decoded += decoded[position + i]
+                    }
+                }
+
+                decoded += node.literal.slice(-1)
+            });
+
+            return decoded
+        }
+
+        function encodeLz78(input) {
+            input = [...input]
+            let buffer = ''
+            let dict = {}
+            let encoded = []
+
+            for (let i = 0; i < input.length; i++) {
+                if (dict[buffer + input[i]] !== undefined) {
+                    buffer += input[i]
+                } else {
+                    encoded.push({index: dict[buffer] ?? 0, literal: input[i]})
+                    let temp = buffer + input[i]
+                    dict[temp] = Object.keys(dict).length + 1
+                    buffer = ''
+                }
+            }
+
+            if (buffer.length > 0) {
+                let last = buffer.slice(-1)
+                encoded.push({index: dict[buffer], literal: last})
+            }
+
+            return encoded
+        }
+
+        function decodeLz78(encoded) {
+            let dict = ['']
+            let decoded = '';
+
+            encoded.forEach(node => {
+                let word = dict[node.index] + node.literal
+                decoded += word
+                dict.push(word)
+            })
+
+            return decoded
+        }
+
+        console.log(encodeLz77('abracadabra', 1 << 8))
+        console.log(decodeLz77(encodeLz77('abracadabra', 1 << 8)))
+        console.log(encodeLz78('abracadabra'))
+        console.log(decodeLz78(encodeLz78('abracadabra')))
+
+        let input = document.getElementById('input')
+        let button = document.getElementById('button')
+
+        let subtitle = document.querySelectorAll('.subtitle')
+
+        let LZ77 = document.querySelector('.LZ77')
+        let tableLZ77 = LZ77.querySelector('.LZ77-table')
+        let duplicateTableLZ77 = tableLZ77.cloneNode(true)
+
+        let LZ78 = document.querySelector('.LZ78')
+        let tableLZ78 = LZ78.querySelector('.LZ78-table')
+        let duplicateTableLZ78 = tableLZ78.cloneNode(true)
+
+        let decode77 = document.getElementById('decode-77')
+        let decode78 = document.getElementById('decode-78')
+
+        button.addEventListener('click', () => {
+            subtitle.forEach((el) => {
+                el.classList.add('active')
+            })
+
+            LZ77.classList.add('active')
+            tableLZ77.parentNode.replaceChild(duplicateTableLZ77.cloneNode(true), tableLZ77)
+            tableLZ77 = document.querySelector('.LZ77-table')
+
+            encodeLz77(input.value, 1 << 8).forEach((el) => {
+                let tr = document.createElement('tr'), td
+
+                td = document.createElement('td')
+                td.innerText = el.offset
+                tr.appendChild(td)
+
+                td = document.createElement('td')
+                td.innerText = el.length
+                tr.appendChild(td)
+
+                td = document.createElement('td')
+                td.innerText = '\'' + el.literal + '\''
+                tr.appendChild(td)
+
+                tableLZ77.appendChild(tr)
+            })
+
+            decode77.innerHTML = `<div class="decode-title">Декодований текст</div>
+                                <div class="decode-text">` + decodeLz77(encodeLz77(input.value, 1 << 8)) + `</div>`
+
+            LZ78.classList.add('active')
+            tableLZ78.parentNode.replaceChild(duplicateTableLZ78.cloneNode(true), tableLZ78)
+            tableLZ78 = document.querySelector('.LZ78-table')
+
+            encodeLz78(input.value).forEach((el) => {
+                let tr = document.createElement('tr'), td
+
+                td = document.createElement('td')
+                td.innerText = el.index
+                tr.appendChild(td)
+
+                td = document.createElement('td')
+                td.innerText = '\'' + el.literal + '\''
+                tr.appendChild(td)
+
+                tableLZ78.appendChild(tr)
+            })
+
+            decode78.innerHTML = `<div class="decode-title">Декодований текст</div>
+                                <div class="decode-text">` + decodeLz78(encodeLz78(input.value)) + `</div>`
+        })
+    </script>
+</body>
+</html>
